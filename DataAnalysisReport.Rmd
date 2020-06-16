@@ -1,7 +1,7 @@
 ---
-title: "DataAnalysisReport"
+title: "A Recommendation System for Movies"
 author: "Joe King"
-date: "12/06/2020"
+date: "12 June 2020"
 output: pdf_document
 ---
 
@@ -9,7 +9,17 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Introduction
+
+The purpose of this project is to provide a machine learning model for a movie recommendation system.  The data on which this model is produced is the Movielens 10M available from [GroupLens research lab](https://grouplens.org/)
+
+The Movielens 10M dataset comprises around 10 million ratings categorised by user and movie. Approximately 10% of the data is reservered as a validation set, with the remainder being used to train the model.
+
+The metric for measuring the quality of the model produced is the root mean square error ($\textbf {RMSE}$) represented by the equation
+
+> $\textbf {RMSE} = \sqrt{(\frac {1}{\textbf N})\sum_{u,i}(\hat y_{u,i}-y_{u,i})^2}$
+
+where $y_{u,i}$ is the rating for movie i by user u, $\hat y_{u,i}$ is the corresponding prediction produced by the model, and N is is the number of user/movie combinations in the validation dataset.
 
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
