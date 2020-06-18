@@ -23,6 +23,18 @@ if (!file.exists("./figs")){
   dir.create("./figs")
 }
 
+<<<<<<< HEAD
+=======
+# Create subdirectories for .rda files and figures
+if (!file.exists("./rdas")){
+  dir.create("./rdas")
+}
+
+if (!file.exists("./figs")){
+  dir.create("./figs")
+}
+
+>>>>>>> bdee412827d3e9d11d5989a62183a32348fd7a3c
 # Function declarations
 
 # my_set_seed function tests for R version to ensure 'sample.kind = "Rounding"'
@@ -209,10 +221,15 @@ save(edx_top_10_users_by_avg_rating,
 # number of ratings given has varied over time
 
 plot_top_5_movie_ratings_by_date <- edx %>% filter(movieId %in% edx_top_5_movies_by_count$movieId) %>% 
+<<<<<<< HEAD
   mutate(short_title=substr(title,1,20)) %>%
   ggplot(aes(timestamp,rating)) + 
   geom_smooth() + facet_grid(short_title~., scales="free") +
   theme(strip.text.y = element_text(size = 7)) +
+=======
+  ggplot(aes(timestamp,rating)) + 
+  geom_smooth() + facet_grid(title~., scales="free") +
+>>>>>>> bdee412827d3e9d11d5989a62183a32348fd7a3c
   ggtitle("Average Rating for Top 5 Movies Over Time") +
   xlab("Time") + ylab("Average Rating")
 
@@ -232,6 +249,7 @@ temp <- edx[test_index]
 edx_test <- temp %>%
   semi_join(edx_train, by = "movieId") %>%
   semi_join(edx_train, by = "userId")
+<<<<<<< HEAD
 
 removed <- anti_join(temp, edx_test)
 edx_train <- rbind(edx_train, removed)
@@ -353,4 +371,12 @@ rmse_results <- bind_rows(rmse_results, data_frame(method="Regularised Movie + U
 
 # save results 
 save(mu_hat, rmse_results,lambda,"./rdas/movielens.rda")
+=======
+
+removed <- anti_join(temp, edx_test)
+edx_train <- rbind(edx_train, removed)
+
+# Clean up
+rm(temp, test_index, removed)
+>>>>>>> bdee412827d3e9d11d5989a62183a32348fd7a3c
 
