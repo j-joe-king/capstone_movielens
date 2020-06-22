@@ -1,12 +1,16 @@
 ################################
-# Create edx set, validation set
-# JJK 10 June 2020 (a) Added explanatory note about creation of validation and edx datasets
-# JJK 12 June 2020 (b) Processing of edx into test and training sets added
-# JJK 12 June 2020 (d) my_set_seed function added to allow setting of seed regardless of R version
+# HarvardX Data Science Capstone Course
+# Movielens Data Analysis R Script
+# Author: Jonathan King
+# Date: 20 June 2020
 #################################
 
-# Prerequisites: ensure required R packages are installed
-# Install R packages tidyverse, caret, data.table if not already loaded
+options(digits = 6)
+
+# SECTION 1 : Prerequisites
+
+# Ensure required R packages are installed
+# tidyverse, caret, data.table, lubridate, ggplot
 
 if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
 if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
@@ -23,21 +27,14 @@ if (!file.exists("./figs")){
   dir.create("./figs")
 }
 
-# Create subdirectories for .rda files and figures
-if (!file.exists("./rdas")){
-  dir.create("./rdas")
-}
-
-if (!file.exists("./figs")){
-  dir.create("./figs")
-}
-
 # Function declarations
-
+#
 # my_set_seed function tests for R version to ensure 'sample.kind = "Rounding"'
 # parameter is set if required for version 3.6 onwards
+#
 # e.g. my_set_seed(200) does 'set.seed(200) for R versions prior to 3.6 and
-# set.seed(200, sample.kind = "Rounding"
+# set.seed(200, sample.kind = "Rounding" for R versions 3.6 onwards
+
 my_set_seed <- function(seed) {
   if(as.numeric(R.version$major)< 3 | as.numeric(R.version$minor < 6)) {
      set.seed(seed)
@@ -47,11 +44,14 @@ my_set_seed <- function(seed) {
   }
 }  
 
-# RMSE function
+# RMSE function: this is the function used to calculate the root mean squares errors
+# for all models 
+
 RMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
+# SECTION 2 : DOWNLOAD AND CLEAN DATA
 
 # MovieLens 10M dataset:
 # https://grouplens.org/datasets/movielens/10m/
@@ -72,8 +72,10 @@ movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))
 movielens <- left_join(ratings, movies, by = "movieId")
 
 # Summarise the data in movielens
-movielens_summary <- movielens %>% 
-  summarize(n_users = n_distinct(userId),
+data_summary <- movielens %>% 
+  summarize(dataset = "Full Movielens 10M", 
+            n_ratings = n(),
+            n_users = n_distinct(userId),
             n_movies = n_distinct(movieId))
 
 # Now do some manipulation of the movielens dataset to split the year of release
@@ -83,15 +85,15 @@ movielens <- movielens %>% mutate(released=substr(title,nchar(title)-4,nchar(tit
                       title=substr(title,1,nchar(title)-7),
                       timestamp=as_datetime(timestamp))
 
-# For later use, define the full list of movie genres contained within the dataset.
+# For possible later use, define the full list of movie genres contained within the dataset.
 # Summarise the number of users and movies in the dataset
 
 movie_genres <- unique(unlist(str_split(movielens$genres,"\\|")))
-movielens_summary <- movielens_summary %>% cbind(n_genres=length(movie_genres))
 
-save(movielens_summary, movie_genres, file = "./rdas/movielens.rda")
-
-# Validation set will be 10% of MovieLens data
+# SECTION 3 : Split Data into edx (used for developing the model) and validation
+# datsets for calculating the final RMSE (and at no point for training the model)
+# Validation set will be 10% of MovieLens data. Seed is set to 1 as specified in
+# course requirements.
 
 my_set_seed(1)
 
@@ -100,15 +102,14 @@ edx <- movielens[-test_index,]
 temp <- movielens[test_index,]
 
 
-# (a) JJK 10 June 2020 
 # This section makes sure all movies and users in the validation dataset are also contained
-# in the edx set.
+# in the edx dataset.
 #
-# The semi-joins remove rows from the validation set without a movie or user match in the 
+# The semi-joins remove rows from the validation dataset without a movie or user match in the 
 # edx dataset.
-# The anti-join adds the removed rows back into the edx
+#
+# The anti-join adds the removed rows back into the edx dataset
 
-# Make sure userId and movieId in validation set are also in edx set
 validation <- temp %>% 
   semi_join(edx, by = "movieId") %>%
   semi_join(edx, by = "userId")
@@ -117,9 +118,22 @@ validation <- temp %>%
 removed <- anti_join(temp, validation)
 edx <- rbind(edx, removed)
 
+# Summarise the data in edx and validation
+data_summary <- data_summary %>% 
+  rbind(edx %>% summarize(dataset = "Training/Testing (90% of Movielens 10M)", 
+                          n_ratings = n(),
+                          n_users = n_distinct(userId), 
+                          n_movies = n_distinct(movieId)))  %>%
+  rbind(validation %>% summarize(dataset = "Validation (10% of Movielens 10M)", 
+                                 n_ratings = n(),
+                                 n_users = n_distinct(userId), 
+                                 n_movies = n_distinct(movieId)))
+
+save(data_summary, movie_genres, file = "./rdas/data_summary.rda")
+
 rm(dl, ratings, movies, test_index, temp, movielens, removed)
 
-# Data Visualisation
+# SECTION 4 : Data Visualisation
 # Let's look at the edx dataset and draw some inferences
 
 # Is there a movie effect?
@@ -166,7 +180,7 @@ save(edx_top_10_movies_by_avg_rating,
      edx_bottom_10_movies_by_avg_rating,
      edx_top_5_movies_by_count,
      cor_avg_movie_to_count,
-     file = "./rdas/movielens.rda")
+     file = "./rdas/movie_data_analysis.rda")
 
 # Is there a user effect?
 # Group the data by userId
@@ -206,12 +220,11 @@ cor_avg_user_to_count = cor(edx_by_user$avg_rating, edx_by_user$count)
 # save plot
 ggsave("./figs/plot_avg_user_rating.png")
 
-# calculate correlation between number of ratings and 
 save(edx_top_10_users_by_avg_rating,
      edx_bottom_10_users_by_avg_rating,
      edx_top_5_users_by_count,
      cor_avg_user_to_count,
-     file = "./rdas/movielens.rda")
+     file = "./rdas/user_data_analysis.rda")
 
 # Is there a time effect on movie ratings?
 # Let's see how the average rating of the top 5 movies by 
@@ -220,21 +233,36 @@ save(edx_top_10_users_by_avg_rating,
 plot_top_5_movie_ratings_by_date <- edx %>% filter(movieId %in% edx_top_5_movies_by_count$movieId) %>% 
   mutate(short_title=substr(title,1,20)) %>%
   ggplot(aes(timestamp,rating)) + 
-  geom_smooth() + facet_grid(short_title~., scales="free") +
+  geom_smooth() + 
+  facet_grid(short_title~., scales="free") +
   theme(strip.text.y = element_text(size = 7)) +
-  ggplot(aes(timestamp,rating)) + 
-  geom_smooth() + facet_grid(title~., scales="free") +
   ggtitle("Average Rating for Top 5 Movies Over Time") +
   xlab("Time") + ylab("Average Rating")
 
 ggsave("./figs/plot_top_5_movie_ratings_by_date.png")
 
-# 
-# (b) JJK 12 June 2020 Now create training and test sets from edx dataset
+# Is there a time effect on movie ratings?
+# Let's see how the average rating of the top 5 movies by 
+# number of ratings given has varied over time
+
+plot_top_5_user_ratings_by_date <- edx %>% filter(userId %in% edx_top_5_users_by_count$userId) %>% 
+  ggplot(aes(timestamp,rating)) + 
+  geom_smooth() + 
+  facet_grid(userId~., scales="free_y") +
+  ggtitle("Average Rating for Top 5 Users Over Time") +
+  xlab("Time") + ylab("Average Rating")
+
+ggsave("./figs/plot_top_5_user_ratings_by_date.png")
+
+# SECTION 5 : Create Training and Test Datasets
+
+# Now create training and test sets from edx dataset
 # set seed to 202 using my_set_seed function
+
 my_set_seed(202)
+
 # use the same method as in creation of edx and validation datasets to split
-# edx into training (about 90%) and test datasets (about 10%). 
+# edx into edx_train (about 90%) and edx_test datasets (about 10%). 
 
 test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.1, list = FALSE)
 edx_train <- edx[-test_index]
@@ -247,98 +275,107 @@ edx_test <- temp %>%
 removed <- anti_join(temp, edx_test)
 edx_train <- rbind(edx_train, removed)
 
+edx_data_summary <- edx_train %>% 
+  summarize(dataset = "edx: Training Set", 
+            n_ratings = n(),
+            n_users = n_distinct(userId),
+            n_movies = n_distinct(movieId)) %>%
+  rbind(edx_test %>% summarize(dataset = "edx: Test Set", 
+                               n_ratings = n(), 
+                               n_users = n_distinct(userId),
+                               n_movies = n_distinct(movieId)))
+
+save(edx_data_summary, movie_genres, file = "./rdas/edx_data_summary.rda")
+
 # Clean up
 rm(temp, test_index, removed)
 
 
-### Building the Recommendation System
-# simplest model is just assuming the overall average rating
+# SECTION 6 : Building the Recommendation System
+
+# NAIVE AVERAGE MODEL
+#
+# The first model is the simplest: just predict everyone will rate the movie with the average
+# mu_hat is our estimate of the average
+
 mu_hat <- mean(edx_train$rating)
 
-naive_rmse <- RMSE(edx_test$rating, mu_hat)
-naive_rmse
+# Calculate Root Mean Squared Error and store in rmse_results
+rmse_results <- data_frame(id = 1, 
+                           method = "Naive Average Model",
+                           rmse = RMSE(edx_test$rating, mu_hat))
 
-rmse_results <- data_frame(method = "Just the average", RMSE = naive_rmse)
-
-# fit <- lm(rating ~ as.factor(movieId), data = edx_train): using this on this large
-# dataset will be too time-consuming, so we approximate the movie effect with
-# mean(rating-mu_hat)
+# ADD PER-MOVIE BIAS MODEL
+#
+# Ideally, we would fit a linear model as follows:
+#    fit <- lm(rating ~ as.factor(movieId), data = edx_train)
+# using this on such a large dataset will be too time-consuming, so we approximate the movie effect with 
+#    b_i = mean(rating-mu_hat) 
+#
+# For later use in regularisation of the data we save 
+#    n_i = the number of ratings for the movie, 
+# and for time effects, 
+#    first_rated_i = the Monday on or before the movie's first rating
 
 movie_avgs <- edx_train %>% group_by(movieId) %>% 
   summarize(n_i = n(),
-            b_i = mean(rating - mu_hat))
+            b_i = mean(rating - mu_hat,),
+            first_rated_i = floor_date(min(timestamp), "weeks", week_start=1))
 
-movie_avgs %>% qplot(b_i, geom ="histogram", bins = 10, data = ., color = I("black"))
+# Histogram of the distribution of b_i 
+plot_b_i_distribution <- movie_avgs %>% qplot(b_i, geom ="histogram", bins = 30, data = ., color = I("black"))
+ggsave("./figs/plot_b_i_distribution.png")
+
+# Store the b_i, n_i and first_rated_i from movie_avgs against each rating in training and test datasets
 
 edx_train <- edx_train %>% left_join(movie_avgs, by = "movieId")
 edx_test <- edx_test %>% left_join(movie_avgs, by = "movieId")
 
+# Predicted ratings on edx_test
 predicted_ratings <- mu_hat + edx_test$b_i
 
-model_1_rmse <- RMSE(predicted_ratings, edx_test$rating)
+# Calculate Root Mean Squared Error and store in rmse_results
 rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Movie Effect Model",
-                                     RMSE = model_1_rmse ))
-rmse_results %>% knitr::kable()
+                          data_frame(id=2,
+                                     method="Movie Bias Model",
+                                     rmse = RMSE(predicted_ratings, edx_test$rating) ))
 
-# fit <- lm(rating ~ as.factor(movieId), data = edx_train): using this on this large
-# dataset will be too time-consuming, so we approximate the movie effect with
-# b_i = mean(rating-mu_hat)
+# ADD PER-USER BIAS MODEL
+# 
+# We now approximate the user bias as the residual of the residual bias after the movie bias
+# has been taken into account:
+#    b_u = mean(rating - mu_hat - b_i). 
+# For later use in regularisation we save 
+#    n_u = the number of ratings for the user, 
+# and for time effects, 
+#    first_rated_u = the Monday on or before the user's first rating
 
-edx_train %>% 
-  group_by(userId) %>% 
-  summarize(b_u = mean(rating)) %>% 
-  ggplot(aes(b_u)) + 
-  geom_histogram(bins = 30, color = "black")
-
-# lm(rating ~ as.factor(movieId) + as.factor(userId)): as before this would be time
-# consuming, so we're approximating the additional user effect with 
-# b_u = mean(rating-mu_hat-b_i)
 
 user_avgs <- edx_train %>% 
   group_by(userId) %>%
   summarize(n_u = n(),
-            b_u = mean(rating - mu_hat - b_i))
+            b_u = mean(rating - mu_hat - b_i),
+            first_rated_u = floor_date(min(timestamp), "weeks", week_start=1))
+
+# Histogram of the distribution of b_i 
+plot_b_u_distribution <- user_avgs %>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"))
+ggsave("./figs/plot_b_u_distribution.png")
 
 edx_train <- edx_train %>% left_join(user_avgs, by = "userId")
 edx_test <- edx_test %>% left_join(user_avgs, by = "userId")
 
+# Predicted ratings on edx_test
 predicted_ratings <- mu_hat + edx_test$b_i + edx_test$b_u
 
-model_2_rmse <- RMSE(predicted_ratings, edx_test$rating)
+# Calculate Root Mean Squared Error and store in rmse_results
 rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Movie + User Effects Model",  
-                                     RMSE = model_2_rmse ))
+                          data_frame(id=3,
+                                     method="Movie and User Biases Model",  
+                                     rmse = RMSE(predicted_ratings, edx_test$rating) ))
 
-# Is there a time effect?
-# Calculate a week number based on earliest rating in dataset
-# Week 1 starts on the Monday of that week
-
-earliest_monday <- floor_date(min(edx_train$timestamp), "weeks", week_start=1)
-
-edx_train <- edx_train %>% mutate(weekno = 1 + round(time_length(interval(earliest_monday, timestamp), "week")))
-edx_test <- edx_test %>% mutate(weekno = 1 + round(time_length(interval(earliest_monday, timestamp), "week")))
-
-weekly_avgs <- edx_train %>% 
-  group_by(weekno) %>%
-  summarize(n_d = n(), 
-            d_ui = mean(rating - b_i - b_u - mu_hat))
-
-plot_weekly_avgs <- weekly_avgs %>% ggplot(aes(weekno,d_ui)) +
-  geom_smooth()
-
-edx_train <- edx_train %>% left_join(weekly_avgs, by = "weekno")
-edx_test <- edx_test %>% left_join(weekly_avgs, by = "weekno")
-
-predicted_ratings <- mu_hat + edx_test$b_i + edx_test$b_u + edx_test$d_ui
-
-model_3_rmse <- RMSE(predicted_ratings, edx_test$rating)
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Movie + User + Time Effects Model",  
-                                     RMSE = model_3_rmse ))
-
-
-# Now we use penalized least squares to tune the movie, user and time effects
+# NOW REGULARISE MOVIE AND USER BIAS MODEL
+#
+# Now we use penalized least squares to tune the movie and user effects
 # First find the lambda that provides the best penalised least squares estimate
 
 lambdas <- seq(0.25,10,0.25)
@@ -348,8 +385,7 @@ rmses <- sapply(lambdas, function(l){
     mutate(pred = 
              mu_hat + 
              b_i*n_i/(n_i+l) + 
-             b_u*n_u/(n_u+l) +
-             d_ui*n_d/(n_d+l)) %>%
+             b_u*n_u/(n_u+l)) %>%
     .$pred
   return(RMSE(predicted_ratings, edx_test$rating))
 })
@@ -358,15 +394,236 @@ rmses <- sapply(lambdas, function(l){
 plot_lambda_v_rmse <- data_frame(l = lambdas, rmse = rmses) %>% 
   ggplot(aes(lambdas, rmse))  + geom_point() +
   xlab("\u03bb")
+
+ggsave("./figs/plot_lambda_v_rmse.png")
+
+# chooose lambda to minimise RMSE and store the best RMSE from the rmses vector
 lambda <- lambdas[which.min(rmses)]
-rmse_results <- bind_rows(rmse_results, data_frame(method="Regularised Movie + User + Time Effects Model",
-                                                   RMSE = rmses[which.min(rmses)]))
+description <- "Regularised Movie and User Biases Model"
+rmse_results <- bind_rows(rmse_results, 
+                          data_frame(id=4,
+                                     method=description, 
+                                     rmse = min(rmses),
+                                     lambda = lambda))
+
+# NOW ADD (REGULARISED) TIME-DEFPENDENT MOVIE BIAS 
+
+# Firstly, let's model a timed movie effect by allocating ratings to time 'bins'. Intuitively, since
+# movies are released on a weekly basis, it makes sense to use bins based on weeks. Let's optimise
+# the number of weeks in each time 'bin' to minimise the RMSE. We'll choose the best bin size from 
+# 1 to 52 weeks. Longer than this seems counter-intuitive.
+
+# NB At this stage we use the lambda calculated already to regularise the timed movie effect
+#    d_i(Bin t) = mean(rating - mu_hat - b_i - b_u) for all ratings for movie i in Bin t
+
+# Optimise the bin size: this takes a minute or two...
+
+binsize <- seq(1,52,3)
+rmses <- sapply(binsize, function(size){
+  # calculate d_i = the residual time-dependent movie effect
+  movies_by_bin <- edx_train %>% 
+    mutate(movie_bin = 1+round(time_length(interval(first_rated_i, timestamp), "week")/size)) %>%
+    group_by(movieId, movie_bin) %>%
+    summarise(n_di = n(),
+              d_i = mean(rating - b_i - b_u - mu_hat))
+  
+  # calculate predicted ratings incorporating d_i, with all effects regularised with lambda
+  
+  df <- edx_test %>% 
+    mutate(movie_bin = 1+round(time_length(interval(first_rated_i, timestamp), "week")/size)) %>%
+    left_join(movies_by_bin, by = c("movieId","movie_bin")) 
+  
+  # set d_i to 0 where no corresponding row in movies_by_bin
+  df$d_i[is.na(df$d_i)] <- 0
+  df$n_di[is.na(df$n_di)] <- 0
+  
+  predicted_ratings <- df %>% 
+    mutate(pred = 
+             mu_hat + 
+             b_i * n_i/(n_i + lambda) +
+             b_u * n_u/(n_u + lambda) +
+             d_i * n_di/(n_di + lambda)) %>% 
+    pull(pred)
+  # calculate RMSE
+  return(RMSE(predicted_ratings, edx_test$rating))
+})
+
+# choose optimal bin size and save corresponding RMSE from rmses vector
+optimal_binsize_i <- binsize[which.min(rmses)]
+description <- "Regularised Movie and User Biases with Added Time Dependent Movie Bias Model"
+rmse_results <- bind_rows(rmse_results, data_frame(id = 5,
+                                                   method=description, 
+                                                   rmse = min(rmses),
+                                                   lambda = lambda,
+                                                   binsize_i = optimal_binsize_i))
+
+# add d_i, n_di for optimal bin size to the edx_train and edx_test datasets
+edx_train <- edx_train %>% 
+  mutate(movie_bin = 1+round(time_length(interval(first_rated_i, timestamp), "week")/optimal_binsize_i)) 
+  
+movies_over_time <- edx_train %>% 
+  group_by(movieId, movie_bin) %>%
+  summarise(n_di = n(), 
+            d_i = mean(rating - b_i - b_u - mu_hat))
+
+edx_train <- edx_train %>% 
+  left_join(movies_over_time, by = c("movieId","movie_bin"))
+
+edx_test <- edx_test %>% 
+  mutate(movie_bin = 1+round(time_length(interval(first_rated_i, timestamp), "week")/optimal_binsize_i)) %>%
+  left_join(movies_over_time, by = c("movieId","movie_bin"))
+
+edx_test$d_i[is.na(edx_test$d_i)] <- 0 
+edx_test$n_di[is.na(edx_test$n_di)] <- 0 
+
+# NOW ADD (REGULARISED) TIME-DEFPENDENT USER BIAS 
+
+# Let's model a timed user effect by allocating ratings to time 'bins'. From earlier analysis,
+# it's likely user ratings are more volatile than movie ratings, so it make sense to choose a smaller
+# bin size.
+
+# NB At this stage we use the lambda calculated already to regularise the timed movie effect
+#    d_u(Bin t) = mean(rating - mu_hat - b_i - b_u - d_i) for all ratings for user u in Bin t
+
+# Optimise the bin size: this takes a minute or two...
+binsize <- seq(1,4)
+rmses <- sapply(binsize, function(size){
+  # calculate d_u = the residual time-dependent movie effect
+  users_by_bin <- edx_train %>% 
+    mutate(user_bin = 1+round(time_length(interval(first_rated_u, timestamp), "week")/size)) %>%
+    group_by(userId, user_bin) %>%
+    summarise(n_du = n(),
+              d_u = mean(rating - b_i - d_i - b_u - mu_hat))
+  
+  # calculate predicted ratings incorporating d_i, with all effects regularised with lambda
+  
+  df <- edx_test %>% 
+    mutate(user_bin = 1+round(time_length(interval(first_rated_u, timestamp), "week")/size)) %>%
+    left_join(users_by_bin, by = c("userId","user_bin")) 
+  
+  # set d_i to 0 where no corresponding row in movies_by_bin
+  df$d_u[is.na(df$d_u)] <- 0
+  df$n_du[is.na(df$n_du)] <- 0 
+  
+  predicted_ratings <- df %>% 
+    mutate(pred = 
+             mu_hat + 
+             b_i * n_i/(n_i + lambda) +
+             b_u * n_u/(n_u + lambda) +
+             d_i * n_di/(n_di + lambda) +
+             d_u * n_du/(n_du + lambda)) %>% 
+    pull(pred)
+  # calculate RMSE
+  return(RMSE(predicted_ratings, edx_test$rating))
+})
+
+# choose optimal bin size and save corresponding RMSE from rmses vector
+
+optimal_binsize_u <- binsize[which.min(rmses)]
+description <- "Regularised Static and Time-Dependent Movie and User Biases Model"
+rmse_results <- bind_rows(rmse_results, data_frame(id = 6,
+                                                   method=description, 
+                                                   rmse = min(rmses),
+                                                   lambda = lambda,
+                                                   binsize_i = optimal_binsize_i,
+                                                   binsize_u = optimal_binsize_u))
+
+# add d_u, n_du for optimal bin size to the edx_train and edx_test datasets
+edx_train <- edx_train %>% 
+  mutate(user_bin = 1+round(time_length(interval(first_rated_u, timestamp), "week")/optimal_binsize_u))
+  
+users_over_time <- edx_train %>% 
+  group_by(userId, user_bin) %>%
+  summarise(n_du = n(), 
+            d_u = mean(rating - b_i - d_i - b_u - mu_hat))
+
+edx_train <- edx_train %>% 
+  left_join(users_over_time, by = c("userId","user_bin"))
+
+edx_test <- edx_test %>% 
+  mutate(user_bin = 1+round(time_length(interval(first_rated_u, timestamp), "week")/optimal_binsize_u)) %>%
+  left_join(users_over_time, by = c("userId","user_bin"))
+
+edx_test$d_u[is.na(edx_test$d_u)] <- 0 
+edx_test$n_du[is.na(edx_test$n_du)] <- 0 
+
+# Originally we derived lambda in our penalized least squares on just the b_i and b_u effects.
+# We now optimise lambda based on all the modelled effects, i.e. including as well d_i and d_u
+# First find the lambda that provides the best penalised least squares estimate
+
+lambdas <- seq(0.25,15,0.25)
+rmses <- sapply(lambdas, function(l){
+  #genre_residual_penalised <- rowMeans(b_k * n_k/(n_k+l) * genre_matrix_test)
+  predicted_ratings <- #genre_residual_penalised +
+    edx_test %>% 
+    mutate(pred = 
+             mu_hat + 
+             b_i*n_i/(n_i+l) + 
+             b_u*n_u/(n_u+l) +
+             d_i*n_di/(n_di+l) +
+             d_u*n_du/(n_du+l)) %>%
+    .$pred
+  return(RMSE(predicted_ratings, edx_test$rating))
+})
+
+# plot of rmse v lambda
+plot_final_lambda_v_rmse <- data_frame(l = lambdas, rmse = rmses) %>% 
+  ggplot(aes(lambdas, rmse))  + geom_point() +
+  xlab("\u03bb") + ylab("RMSE[edx_test]") + ggtitle("RMSE v \u03bb: Final Model")
+
+ggsave("./figs/plot_final_lambda_v_rmse.png")
+
+final_lambda <- lambdas[which.min(rmses)]
+description <- "Final Regularised Static and Time-Dependent Movie and User Biases Model"
+rmse_results <- bind_rows(rmse_results, data_frame(id = 7,
+                                                   method=description, 
+                                                   rmse = min(rmses),
+                                                   lambda = final_lambda,
+                                                   binsize_i = optimal_binsize_i,
+                                                   binsize_u= optimal_binsize_u))
+
+# SECTION 7 : CALCULATE RMSE ON THE VALIDATION DATASET
+
+# Allocate estimated b_i, b_u, d_i, d_u and associated counts n_i, n_u, n_di, n_du to the validation
+# dataset by matching up with the training dataset
+
+validation <- validation %>% left_join(movie_avgs, by = "movieId") %>%
+  left_join(user_avgs, by = "userId") %>%
+  mutate(movie_bin = 1+round(time_length(interval(first_rated_i, timestamp), "week")/optimal_binsize_i),
+         user_bin = 1+round(time_length(interval(first_rated_u, timestamp), "week")/optimal_binsize_u)) %>%
+  left_join(movies_over_time, by = c("movieId","movie_bin")) %>%
+  left_join(users_over_time, by = c("userId","user_bin"))
+
+validation$d_i[is.na(validation$d_i)] <- 0 
+validation$n_di[is.na(validation$n_di)] <- 0 
+validation$d_u[is.na(validation$d_u)] <- 0 
+validation$n_du[is.na(validation$n_du)] <- 0 
+
+
+# Calculated predicted ratings for the validation dataset
+
+predicted_ratings <-
+  validation %>% 
+  mutate(pred = 
+           mu_hat + 
+           b_i*n_i/(n_i+final_lambda) + 
+           b_u*n_u/(n_u+final_lambda) +
+           d_i*n_di/(n_di+final_lambda)+
+           d_u*n_du/(n_du+final_lambda)) %>%
+  .$pred
+
+# FINALLY! Calculate the RMSE for the validation set for the final model
+
+validation_rmse <- RMSE(predicted_ratings, validation$rating)
 
 # save results 
-save(mu_hat, rmse_results,lambda,"./rdas/movielens.rda")
+save(mu_hat, 
+     rmse_results, 
+     lambda,
+     final_lambda,
+     optimal_binsize_i,
+     optimal_binsize_u,
+     validation_rmse,
+     file = "./rdas/results.rda")
 
-removed <- anti_join(temp, edx_test)
-edx_train <- rbind(edx_train, removed)
 
-# Clean up
-rm(temp, test_index, removed)

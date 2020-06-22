@@ -3,3 +3,9 @@
 .RData
 .Ruserdata
 ml-10M100K
+DataAnalysisReport.log
+figs
+genremanipulation.R
+pca_on_genre.R
+rdas
+testingbinsizecycle.R

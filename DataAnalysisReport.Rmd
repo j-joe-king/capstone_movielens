@@ -1,40 +1,155 @@
 ---
 title: "A Recommendation System for Movies"
 author: "Joe King"
-date: "12 June 2020"
-output: pdf_document
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+mainfont: Tahoma
+fontsize: 12
+urlcolor: blue
+papersize: a4
+header-includes:
+- \usepackage{graphicx}
+- \usepackage{float}
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(grid)
+library(gridExtra)
+knitr::opts_chunk$set(echo = FALSE)
+load("./rdas/data_summary.rda")
+load("./rdas/movie_data_analysis.rda")
+load("./rdas/user_data_analysis.rda")
+load("./rdas/edx_data_summary.rda")
+load("./rdas/results.rda")
 ```
 
 ## Introduction
 
-The purpose of this project is to provide a machine learning model for a movie recommendation system.  The data on which this model is produced is the Movielens 10M available from [GroupLens research lab](https://grouplens.org/)
+The purpose of this project is to provide a machine learning model for a movie recommendation system.  The data on which this model is produced is the Movielens 10M dataset available from [GroupLens research lab](https://grouplens.org/datasets/movielens/10m/)
 
-The Movielens 10M dataset comprises around 10 million ratings categorised by user and movie. Approximately 10% of the data is reservered as a validation set, with the remainder being used to train the model.
+The Movielens 10M dataset comprises around 10 million ratings categorised by user, movie and one or more genres. Approximately 10% of the data is reserved as a validation set, with the remainder being used to train and test the modelling of the recommendation system. Despite being a partitition of the full datset, the validation set will be treated as "unseen" as far as developing the recommendation model is concerned. It will only be used at the end of the process to validate the accuracy of the model. The allocation of the Movielens 10M dataset to training/testing and to validation is shown in Table 1.
 
-The metric for measuring the quality of the model produced is the root mean square error ($\textbf {RMSE}$) represented by the equation
+```{r data_summary, echo = FALSE}
+t1 <- data_summary
+kable(t1, caption = "Summary of Movielens 10M Data",
+      col.names = c("Dataset", "No of Rows", "No of Movies", 
+                    "No of Users"))
+```
+
+The metric for measuring the accuracy of the model produced is the root mean square error ($\textbf {RMSE}$) represented by the equation
 
 > $\textbf {RMSE} = \sqrt{(\frac {1}{\textbf N})\sum_{u,i}(\hat y_{u,i}-y_{u,i})^2}$
 
-where $y_{u,i}$ is the rating for movie i by user u, $\hat y_{u,i}$ is the corresponding prediction produced by the model, and N is is the number of user/movie combinations in the validation dataset.
+where $y_{u,i}$ is the rating for movie i by user u, $\hat y_{u,i}$ is the corresponding prediction produced by the model, and $\textbf N$ is is the number of user/movie combinations in the dataset.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+The report begins with some analysis of the dataset in order to look for patterns and correlations within the data. The analysis (on the whole of the Training/Testing dataset (**edx**) informs the choices of methods used for modelling the predictions. The investigation looks at movie and user biases (or effects).  These are split into two types, namely per-movie and per-user average biases, and then time-dependent movie and user biases.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Next, the details of how each bias is modelled is set out and the recommendation system model is built. The **edx** dataset is first split 90/10 into training and testing datasets **edx_train** and **edx_test** as set out in Table 2.
 
-```{r cars}
-summary(cars)
+```{r edx_data_summary, echo = FALSE}
+t2 <- edx_data_summary
+kable(t2, caption = "Summary of **edx** Training and Test Datasets",
+      col.names = c("Dataset", "No of Rows", "No of Movies", 
+                    "No of Users"))
 ```
 
-## Including Plots
+A linear model is used for developing the recommendation system. Each bias modelled is added to the average rating over all movies and all users. Our estimate for the average rating (denoted $\hat \mu$) is the average over all the ratings in the **edx** dataset. The predicted rating for a given row in a dataset will then be $\hat \mu$ plus the sum of the biases for the parameters in that row of the dataset.
 
-You can also embed plots, for example:
+These predictions are derived from the data in the **edx_train** dataset and tested on the **edx_test** dataset.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+Finally the recommendations system model is used to derive predicted ratings on the validation dataset and report the results of the $\textbf {RMSE}$ calculation.
+
+\newpage
+
+## Data Analysis
+
+### Average Per-Movie Ratings
+
+Intuitively, some movies are better than others, so it is to be expected that there is a spread of ratings between movies. By the same token, "blockbuster" movies are likely to be rated more often than say "art house" movies.  
+
+Tables 3 and 4 below show the best and worst ten movies by average rating. What is important to notice is these are generally obscure movies with just a handful of ratings, so it may be necessary to prevent these seldom-rated movies from skewing the recommendations model, suggesting regularisation of the data will be necessary.
+
+```{r avg_movie_analysis, echo=FALSE}
+t3 <- edx_top_10_movies_by_avg_rating %>% select(title, avg_rating, count)
+kable(t3,
+      caption = "Best 10 Movies By Average Rating",
+      col.names = c("Title", "Average Rating", "No of Ratings"))
+t4 <- edx_bottom_10_movies_by_avg_rating %>% select(title, avg_rating, count)
+kable(t4,
+      caption = "Worst 10 Movies By Average Rating",
+      col.names = c("Title", "Average Rating", "No of Ratings"))
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+If we now look at the top five movies by their number of ratings (good, bad or indifferent), then we see very much the "usual suspects", as Table 5 shows.
+
+```{r avg_movie_analysis_cont, echo=FALSE}
+t5 <- edx_top_5_movies_by_count  %>% select(title, avg_rating, count)
+kable(t5,
+      caption = "Best 5 Movies By No of Ratings",
+      col.names = c("Title", "Average Rating", "No of Ratings"))
+
+
+```
+
+It is interesting to see a scatter plot of the average movie ratings by the number of times they are rated. Figure 1 shows this. The best and worst ten movies by rating are highlighted in red and our the top five movies by number of ratings are highlighted in red.
+
+The pattern clearly shows how as the number of ratings increase, the average rating converges towards the centre. Our best and worst movies by rating are outliers in this plot, the top 5 by ratings count are in the same range as other movies. Another observation is that there is a weak positive correlation between the average rating and the number of ratings ($\rho$ = `r cor_avg_movie_to_count`).
+
+```{r avg_movie_plot, out.width='66%', fig.cap="Average Movie Ratings", fig.align='center', fig.pos="H"}
+include_graphics("./figs/plot_avg_movie_rating.png")
+```
+
+### Average Per-User Ratings
+
+As is the case for movies, it is to be expected that there is a spread of average ratings between users. Similarly, users who are avid movie watchers are likely to rate movies more often than other users. If user tastes are thrown into the mix, then intuitively the variability between users is going to be greater than for movies.  
+
+Tables 6 and 7 below show the ten users who give the highest and lowest movie ratings respectively. Table 8 shows the five most prolific raters of movies. As for movies, it's important to notice that generally those high and low ratings are from infrequent raters. 
+
+Again, it's important to note that we may need to regularise the data to ensure that the infrequent raters do not skew the model.
+
+```{r avg_user_analysis, echo=FALSE}
+t6 <- edx_top_10_users_by_avg_rating %>% select(userId, avg_rating, count)
+kable(t6, 
+      caption = "Users with the 10 Highest Average Ratings",
+      col.names = c("User ID", "Average Rating", "No of Ratings"))
+t7 <- edx_bottom_10_users_by_avg_rating %>% select(userId, avg_rating, count)
+kable(t7, 
+      caption = "Users with the 10 Lowest Average Ratings",
+      col.names = c("User ID", "Average Rating", "No of Ratings"))
+t8 <- edx_top_5_users_by_count  %>% select(userId, avg_rating, count)
+kable(t8, 
+      caption = "5 Most Frequent Rating Users",
+      col.names = c("User ID", "Average Rating", "No of Ratings"))
+```
+
+A scatter plot of the average user ratings by the number of times they rate is shown in Figure 2. The highest and lowest users by their average rating are highlighted in red and the top five most prolific users are highlighted in red.
+
+```{r avg_user_plot, out.width='66%', fig.cap="Average User Ratings", fig.align='center', fig.pos='H'}
+include_graphics("./figs/plot_avg_user_rating.png")
+```
+
+As for movies, the plot clearly show the highest and lowest raters by average rating are outliers. The pattern clearly shows how as the number of ratings increase, the average rating converges towards the centre. It's interesting that our most prolific users are quite different in their average rating, suggesting that they have a bias in one direction or the other from the mean user rating.
+
+It's clear from the plot that the correlation between number of ratings and average rating is very weak. In fact it's a weak negative correlation ($\rho$ = `r cor_avg_user_to_count`), suggesting users become slightly more critical as they rate more movies.
+
+## Time-dependent Variations
+
+It is logical to think that the popularity of a movie changes over time.  It might be a "hit" that starts off with good ratings when it is released, then as time goes on, opinions change as to how good it was. Or it might be a "slow burner" that improves with age. It's likely different movies go in and out of fashion over time. 
+
+The first plot in figure 3 shows how the average rating of our top 5 movies by the number of ratings has varied.  It indicates a relatively long term variation in a movie's average rating over time.
+
+When it comes to users who rate movies, then human nature comes into the mix. Rating then depends on all sorts of factors dependent on, by example, mood, fashion, or who they a watch with. The second plot in figure 3 shows how the ratings of the top 5 most prolific users vary over time. In indicates a lot of variability between users and a shorter term volatility in their ratings.
+
+
+```{r top_5_movies_over_time, out.width="49%", fig.cap="Time-Dependent Rating Variation", fig.show='hold', fig.align='center'}
+include_graphics(c("./figs/plot_top_5_movie_ratings_by_date.png","./figs/plot_top_5_user_ratings_by_date.png"))
+```
+
+In modelling these two time-dependent biases, it makes sense to treat them separately with different time scales over which to measure the variation.
+
+
