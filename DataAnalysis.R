@@ -173,7 +173,7 @@ plot_avg_movie_rating <- edx_by_movie %>% ggplot(aes(count,avg_rating,color=coun
 cor_avg_movie_to_count = cor(edx_by_movie$avg_rating, edx_by_movie$count)
 
 # save plot
-ggsave("./figs/plot_avg_movie_rating.png")
+ggsave("./figs/plot_avg_movie_rating.png", width = 4, height = 4)
 
 # save data 
 save(edx_top_10_movies_by_avg_rating,
@@ -218,7 +218,7 @@ plot_avg_user_rating <- edx_by_user %>% ggplot(aes(count,avg_rating,color=count)
 cor_avg_user_to_count = cor(edx_by_user$avg_rating, edx_by_user$count)
 
 # save plot
-ggsave("./figs/plot_avg_user_rating.png")
+ggsave("./figs/plot_avg_user_rating.png", width = 4, height = 4)
 
 save(edx_top_10_users_by_avg_rating,
      edx_bottom_10_users_by_avg_rating,
@@ -239,7 +239,7 @@ plot_top_5_movie_ratings_by_date <- edx %>% filter(movieId %in% edx_top_5_movies
   ggtitle("Average Rating for Top 5 Movies Over Time") +
   xlab("Time") + ylab("Average Rating")
 
-ggsave("./figs/plot_top_5_movie_ratings_by_date.png")
+ggsave("./figs/plot_top_5_movie_ratings_by_date.png", width = 4, height = 4)
 
 # Is there a time effect on movie ratings?
 # Let's see how the average rating of the top 5 movies by 
@@ -252,7 +252,7 @@ plot_top_5_user_ratings_by_date <- edx %>% filter(userId %in% edx_top_5_users_by
   ggtitle("Average Rating for Top 5 Users Over Time") +
   xlab("Time") + ylab("Average Rating")
 
-ggsave("./figs/plot_top_5_user_ratings_by_date.png")
+ggsave("./figs/plot_top_5_user_ratings_by_date.png", width = 4, height = 4)
 
 # SECTION 5 : Create Training and Test Datasets
 
@@ -324,7 +324,7 @@ movie_avgs <- edx_train %>% group_by(movieId) %>%
 
 # Histogram of the distribution of b_i 
 plot_b_i_distribution <- movie_avgs %>% qplot(b_i, geom ="histogram", bins = 30, data = ., color = I("black"))
-ggsave("./figs/plot_b_i_distribution.png")
+ggsave("./figs/plot_b_i_distribution.png", width = 3, height = 3)
 
 # Store the b_i, n_i and first_rated_i from movie_avgs against each rating in training and test datasets
 
@@ -359,7 +359,7 @@ user_avgs <- edx_train %>%
 
 # Histogram of the distribution of b_i 
 plot_b_u_distribution <- user_avgs %>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"))
-ggsave("./figs/plot_b_u_distribution.png")
+ggsave("./figs/plot_b_u_distribution.png", width = 3, height = 3)
 
 edx_train <- edx_train %>% left_join(user_avgs, by = "userId")
 edx_test <- edx_test %>% left_join(user_avgs, by = "userId")
@@ -395,7 +395,7 @@ plot_lambda_v_rmse <- data_frame(l = lambdas, rmse = rmses) %>%
   ggplot(aes(lambdas, rmse))  + geom_point() +
   xlab("\u03bb")
 
-ggsave("./figs/plot_lambda_v_rmse.png")
+ggsave("./figs/plot_lambda_v_rmse.png", width = 3, height = 3)
 
 # chooose lambda to minimise RMSE and store the best RMSE from the rmses vector
 lambda <- lambdas[which.min(rmses)]
@@ -406,7 +406,7 @@ rmse_results <- bind_rows(rmse_results,
                                      rmse = min(rmses),
                                      lambda = lambda))
 
-# NOW ADD (REGULARISED) TIME-DEFPENDENT MOVIE BIAS 
+# NOW ADD (REGULARISED) TIME-DEPENDENT MOVIE BIAS 
 
 # Firstly, let's model a timed movie effect by allocating ratings to time 'bins'. Intuitively, since
 # movies are released on a weekly basis, it makes sense to use bins based on weeks. Let's optimise
@@ -456,6 +456,11 @@ rmse_results <- bind_rows(rmse_results, data_frame(id = 5,
                                                    rmse = min(rmses),
                                                    lambda = lambda,
                                                    binsize_i = optimal_binsize_i))
+
+plot_binsize_i_v_rmse <- data_frame(binsize, rmse=rmses) %>% 
+  ggplot(aes(binsize,rmses)) + geom_point() + xlab("binsize") + ylab("RMSE")
+
+ggsave("./figs/plot_binsize_i_v_rmse.png", width = 3, height = 3) 
 
 # add d_i, n_di for optimal bin size to the edx_train and edx_test datasets
 edx_train <- edx_train %>% 
@@ -528,6 +533,12 @@ rmse_results <- bind_rows(rmse_results, data_frame(id = 6,
                                                    binsize_i = optimal_binsize_i,
                                                    binsize_u = optimal_binsize_u))
 
+plot_binsize_u_v_rmse <- data_frame(binsize, rmse=rmses) %>% 
+  ggplot(aes(binsize,rmses)) + geom_point() + 
+  xlab("binsize") + ylab("RMSE")
+
+ggsave("./figs/plot_binsize_u_v_rmse.png", width = 3, height = 3) 
+
 # add d_u, n_du for optimal bin size to the edx_train and edx_test datasets
 edx_train <- edx_train %>% 
   mutate(user_bin = 1+round(time_length(interval(first_rated_u, timestamp), "week")/optimal_binsize_u))
@@ -569,9 +580,9 @@ rmses <- sapply(lambdas, function(l){
 # plot of rmse v lambda
 plot_final_lambda_v_rmse <- data_frame(l = lambdas, rmse = rmses) %>% 
   ggplot(aes(lambdas, rmse))  + geom_point() +
-  xlab("\u03bb") + ylab("RMSE[edx_test]") + ggtitle("RMSE v \u03bb: Final Model")
+  xlab("\u03bb") + ylab("RMSE") + ggtitle("RMSE v \u03bb: Final Model")
 
-ggsave("./figs/plot_final_lambda_v_rmse.png")
+ggsave("./figs/plot_final_lambda_v_rmse.png", width = 3, height = 3)
 
 final_lambda <- lambdas[which.min(rmses)]
 description <- "Final Regularised Static and Time-Dependent Movie and User Biases Model"
