@@ -2,10 +2,12 @@
 # HarvardX Data Science Capstone Course
 # Movielens Data Analysis R Script
 # Author: Jonathan King
-# Date: 20 June 2020
+# Date: 16 July 2020
 #################################
 
-options(digits = 6)
+# NB This script was developed using R 4.0.2. If you are using an
+# earlier version, make the changes as indicated in the code before running
+# the script
 
 # SECTION 1 : Prerequisites
 
@@ -28,21 +30,6 @@ if (!file.exists("./figs")){
 }
 
 # Function declarations
-#
-# my_set_seed function tests for R version to ensure 'sample.kind = "Rounding"'
-# parameter is set if required for version 3.6 onwards
-#
-# e.g. my_set_seed(200) does 'set.seed(200) for R versions prior to 3.6 and
-# set.seed(200, sample.kind = "Rounding" for R versions 3.6 onwards
-
-my_set_seed <- function(seed) {
-  if(as.numeric(R.version$major)< 3 | as.numeric(R.version$minor < 6)) {
-     set.seed(seed)
-  }
-  else {
-    set.seed(seed, sample.kind = "Rounding")
-  }
-}  
 
 # RMSE function: this is the function used to calculate the root mean squares errors
 # for all models 
@@ -65,7 +52,13 @@ ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings
 
 movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
 colnames(movies) <- c("movieId", "title", "genres")
-movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))[movieId],
+
+# if using R 3.6 or earlier
+# movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))[movieId],
+#                                            title = as.character(title),
+#                                            genres = as.character(genres))
+# if using R 4.0 or later
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
                                            title = as.character(title),
                                            genres = as.character(genres))
 
@@ -95,7 +88,8 @@ movie_genres <- unique(unlist(str_split(movielens$genres,"\\|")))
 # Validation set will be 10% of MovieLens data. Seed is set to 1 as specified in
 # course requirements.
 
-my_set_seed(1)
+set.seed(1, sample.kind="Rounding")
+# if using R 3.5 or earlier, use `set.seed(1)` instead
 
 test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
 edx <- movielens[-test_index,]
@@ -257,9 +251,10 @@ ggsave("./figs/plot_top_5_user_ratings_by_date.png", width = 4, height = 4)
 # SECTION 5 : Create Training and Test Datasets
 
 # Now create training and test sets from edx dataset
-# set seed to 202 using my_set_seed function
+# set seed to 202
 
-my_set_seed(202)
+set.seed(202, sample.kind="Rounding")
+# if using R 3.5 or earlier, use `set.seed(202)` instead
 
 # use the same method as in creation of edx and validation datasets to split
 # edx into edx_train (about 90%) and edx_test datasets (about 10%). 

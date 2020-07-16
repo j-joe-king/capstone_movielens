@@ -410,7 +410,7 @@ As can be seen from the previous section, the root mean square estimate for the 
 
 The model formula for deriving predictions covers four biases, two each for movie and user, both static and time-dependent. 
 
-The analysis suggested that both user and movie biases existed in the ratings data so it made a deal of sense to model for these. The RMSE figure for the validation set turned out lower than that for the test dataset. This shows that it the model developed presents a reasonable approach to the problem.
+The analysis suggested that both user and movie biases existed in the ratings data so it made a deal of sense to model for these. The RMSE figure for the validation set turned out lower than that for the test dataset. This shows that the model developed presents a reasonable approach to the problem.
 
 While it was entirely appropriate to fit a linear model to the static movie and user biases, the modelling of the time-dependent biases was perhaps a little simplistic. Using time bins allowed a linear model to be fitted within each time bin. Further work could explore a more sophisticated method for fitting a non-linear, continuous model to these time-dependent biases, especially for the user bias where the volatility suggests there are other effects to investigate.
 
